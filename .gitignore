@@ -1,0 +1,6 @@
+#Diretórios ignorados
+node_modules/
+.next/
+
+#Arquivos ignorados
+.env
