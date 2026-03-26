@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
 
 type Conta = {
   id: string;
@@ -50,6 +51,7 @@ type Conta = {
 
 export default function PlanoContasPage() {
   const [contas, setContas] = useState<Conta[]>([]);
+  const [contaPai, setContaPai] = useState<Conta[]>([]);
   const [filteredContas, setFilteredContas] = useState<Conta[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filtroTipo, setFiltroTipo] = useState<string>("TODOS");
@@ -60,7 +62,7 @@ export default function PlanoContasPage() {
   const [contaEdit, setContaEdit] = useState<Conta | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [contaDelete, setContaDelete] = useState<Conta | null>(null);
-
+  const {toast} = useToast();
   // Nova conta
   const [novaConta, setNovaConta] = useState({
     codigo: "",
@@ -86,6 +88,7 @@ export default function PlanoContasPage() {
       const response = await fetch("/api/contas?ativas=true");
       const data = await response.json();
       setContas(data || []);
+      setContaPai(data.filter((c:any) => !c.aceitaLancamento)||[]);
     } catch (error) {
       console.error("Erro ao carregar contas:", error);
     } finally {
@@ -111,12 +114,12 @@ export default function PlanoContasPage() {
     setFilteredContas(resultado);
   };
 
-  const toggleExpand = (codigo: string) => {
+  const toggleExpand = (id: string) => {
     const newExpanded = new Set(expandedItems);
-    if (newExpanded.has(codigo)) {
-      newExpanded.delete(codigo);
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id);
     } else {
-      newExpanded.add(codigo);
+      newExpanded.add(id);
     }
     setExpandedItems(newExpanded);
   };
@@ -143,14 +146,26 @@ export default function PlanoContasPage() {
           contaPai: "",
           aceitaLancamento: true,
         });
-        alert("Conta criada com sucesso!");
+         toast({
+          title:"Sucesso!",
+          variant: "success",
+          description: "Conta criada com sucesso"
+        })
       } else {
         const error = await response.json();
-        alert(error.message || "Erro ao criar conta");
+        toast({
+          title:"Erro",
+          variant: "destructive",
+          description: error.message || "Ocorreu um erro inesperado"
+        })
       }
     } catch (error) {
       console.error("Erro ao criar conta:", error);
-      alert("Erro ao criar conta");
+      toast({
+          title:"Erro",
+          variant: "destructive",
+          description: "Ocorreu um erro inesperado. Tente novamente."
+        })
     }
   };
 
@@ -176,7 +191,7 @@ export default function PlanoContasPage() {
 
     try {
       const response = await fetch(`/api/contas/${contaEdit.id}`, {
-        method: "PUT",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(novaConta),
       });
@@ -237,7 +252,7 @@ export default function PlanoContasPage() {
   const renderContaHierarquica = (conta: Conta) => {
     const filhas = filteredContas.filter((c) => c.contaPai === conta.codigo);
     const temFilhas = filhas.length > 0;
-    const isExpanded = expandedItems.has(conta.codigo);
+    const isExpanded = expandedItems.has(conta.id);
 
     const badgeColor = {
       ATIVO: "bg-blue-100 text-blue-800",
@@ -255,7 +270,7 @@ export default function PlanoContasPage() {
         >
           {temFilhas ? (
             <button
-              onClick={() => toggleExpand(conta.codigo)}
+              onClick={() => toggleExpand(conta.id)}
               className="text-slate-400 hover:text-slate-600"
             >
               {isExpanded ? (
@@ -359,6 +374,16 @@ export default function PlanoContasPage() {
             </DialogHeader>
             <form onSubmit={handleCriarConta} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                <Label htmlFor="nome">Nome da Conta *</Label>
+                <Input
+                  id="nome"
+                  value={novaConta.nome}
+                  onChange={(e) => setNovaConta({ ...novaConta, nome: e.target.value })}
+                  placeholder="Ex: Meios de carga e transporte"
+                  required
+                />
+              </div>
                 <div className="space-y-2">
                   <Label htmlFor="codigo">Código *</Label>
                   <Input
@@ -369,29 +394,6 @@ export default function PlanoContasPage() {
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="nivel">Nível *</Label>
-                  <Input
-                    id="nivel"
-                    type="number"
-                    min="1"
-                    max="5"
-                    value={novaConta.nivel}
-                    onChange={(e) => setNovaConta({ ...novaConta, nivel: parseInt(e.target.value) })}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="nome">Nome da Conta *</Label>
-                <Input
-                  id="nome"
-                  value={novaConta.nome}
-                  onChange={(e) => setNovaConta({ ...novaConta, nome: e.target.value })}
-                  placeholder="Ex: Produtos Veterinários"
-                  required
-                />
               </div>
 
               <div className="space-y-2">
@@ -413,7 +415,7 @@ export default function PlanoContasPage() {
                     onValueChange={(value) => setNovaConta({ ...novaConta, tipo: value })}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Selecione a Conta Pai"/>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ATIVO">ATIVO</SelectItem>
@@ -443,13 +445,23 @@ export default function PlanoContasPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="contaPai">Código da Conta Pai (opcional)</Label>
-                <Input
-                  id="contaPai"
+                <Label htmlFor="contaPai">Conta Pai *</Label>
+                <Select
                   value={novaConta.contaPai}
-                  onChange={(e) => setNovaConta({ ...novaConta, contaPai: e.target.value })}
-                  placeholder="Ex: 26"
-                />
+                  onValueChange={(value) => setNovaConta({ ...novaConta, contaPai: value })}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue  placeholder="Selecione a conta Pai"/>
+                  </SelectTrigger>
+                  <SelectContent>
+                     {contaPai.map((conta)=> (
+                      <SelectItem key={conta.codigo} value ={conta.codigo}>
+                        {conta.codigo} - {conta.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="flex items-center space-x-2">
@@ -610,14 +622,14 @@ export default function PlanoContasPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit-natureza">Natureza *</Label>
+                <Label htmlFor="edit-natureza">Natureza(<strong>Alterar a natureza da conta afet</strong>)*</Label>
                 <Select
                   value={novaConta.natureza}
                   onValueChange={(value) => setNovaConta({ ...novaConta, natureza: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                    <SelectValue placeholder="Natureza da conta" />
+                  </SelectTrigger> 
                   <SelectContent>
                     <SelectItem value="DEVEDORA">DEVEDORA</SelectItem>
                     <SelectItem value="CREDORA">CREDORA</SelectItem>

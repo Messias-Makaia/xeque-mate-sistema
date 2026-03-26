@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
 import prisma from "@/lib/db";
+import { authOptions } from "@/lib/auth-options";
+import { criarConta } from "./service";
 
 export const dynamic = "force-dynamic";
 
@@ -47,47 +48,14 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { codigo, nome, descricao, tipo, natureza, nivel, contaPai, aceitaLancamento } = body;
-
-    if (!codigo || !nome || !tipo || !natureza || nivel === undefined) {
-      return NextResponse.json(
-        { message: "Campos obrigatórios faltando" },
-        { status: 400 }
-      );
-    }
-
-    // Verificar se conta já existe
-    const contaExistente = await prisma.contaContabil.findUnique({
-      where: { codigo },
-    });
-
-    if (contaExistente) {
-      return NextResponse.json(
-        { message: "Já existe uma conta com este código" },
-        { status: 400 }
-      );
-    }
-
-    const novaConta = await prisma.contaContabil.create({
-      data: {
-        codigo,
-        nome,
-        descricao: descricao || null,
-        tipo,
-        natureza,
-        nivel,
-        contaPai: contaPai || null,
-        aceitaLancamento: aceitaLancamento ?? true,
-        ativa: true,
-      },
-    });
-
-    return NextResponse.json(novaConta, { status: 201 });
-  } catch (error) {
+    const conta = await criarConta(body, session.user.id);
+    return NextResponse.json(conta, { status: 201 });
+  } catch (error: any) {
     console.error("Erro ao criar conta:", error);
-    return NextResponse.json(
-      { message: "Erro ao criar conta" },
-      { status: 500 }
-    );
+    const message =
+      typeof error?.message === "string"
+        ? error.message
+        : "Erro ao criar conta";
+    return NextResponse.json({ message }, { status: 400 });
   }
 }

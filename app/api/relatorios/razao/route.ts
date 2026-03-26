@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const dataInicio = searchParams.get("dataInicio");
     const dataFim = searchParams.get("dataFim");
-    const conta = searchParams.get("conta");
+    const conta = searchParams.get("contaId");
     
     if (!dataInicio || !dataFim) {
       return NextResponse.json(
@@ -60,15 +60,12 @@ const razao = itens.map((item:any) => {
   const debito = parseFloat(item.debito);
   const credito = parseFloat(item.credito);
 
-  if(item.contaContabil.tipo==="PASSIVO"||item.contaContabil.tipo==="RECEITA")
+  if(item.contaContabil.tipo==="PASSIVO"||item.contaContabil.tipo==="RECEITA"|| item.contaContabil.tipo==="CAPITAL")
   saldo += credito-debito;
   else
   saldo += debito-credito;
 
   return {
-    // data: item.lancamento.data,
-    // descricao: item.lancamento.descricao,
-    // documento: item.lancamento.documento,
     data: item.lancamento.data,
     documento: item.lancamento.documento,
     descricao: item.lancamento.descricao,
@@ -79,8 +76,11 @@ const razao = itens.map((item:any) => {
 });
     return NextResponse.json({
       periodo: { dataInicio, dataFim },
+      nomeConta:itens[0]?.nomeConta || "",
+      codigoConta:itens[0]?.codigoConta || "",
       razao1:razao,
-
+      emitidopor: session?.user?.name,
+      email: session?.user?.email,
     });
   } catch (error) {
     console.error("Erro ao gerar razão:", error);

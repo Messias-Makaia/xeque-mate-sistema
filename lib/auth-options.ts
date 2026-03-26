@@ -52,7 +52,7 @@ export const authOptions: NextAuthOptions = {
         const userRoles = await prisma.userRole.findMany({
           where: { userId: user.id },
           include: {
-            role: {
+            role:{
               include: {
                 permissions: {
                   include: { permission: true },
@@ -64,8 +64,9 @@ export const authOptions: NextAuthOptions = {
 
         const perms = new Set<string>();
         for (const ur of userRoles) {
+          if(ur.role.ativo)
           for (const rp of ur.role.permissions) {
-            if (rp.permission.ativo) perms.add(rp.permission.nome);
+            if(rp.permission.ativo) perms.add(rp.permission.nome);
           }
         }
 

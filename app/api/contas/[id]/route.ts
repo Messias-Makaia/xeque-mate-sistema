@@ -15,9 +15,29 @@ export async function PATCH(
     if (!session) {
       return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
     }
+    
+    if(!session?.user?.permissions.includes("contas.editar")){
+      return NextResponse.json({message: "Sem permissão"}, {status: 401});
+    }
 
     const body = await req.json();
-    const { nome, descricao, aceitaLancamento, ativa } = body;
+    const { nome, descricao, aceitaLancamento, ativa, natureza, nivel} = body;
+
+    const verificarLanc = await prisma.itemLancamento.count(
+      {
+        where: {id: params.id}
+      }
+    );
+
+    if(!aceitaLancamento && verificarLanc > 0)
+    {
+         return NextResponse.json({message:"Não é possível atualizar para sintética uma conta analítica com movimentos"});
+    }
+
+    if(nivel ===1)
+    {
+      return NextResponse.json({message:"As propriedades de classes (1, 2, 3...8) não são alteráveis"});
+    }
 
     const contaAtualizada = await prisma.contaContabil.update({
       where: { id: params.id },
@@ -26,6 +46,7 @@ export async function PATCH(
         ...(descricao !== undefined && { descricao }),
         ...(aceitaLancamento !== undefined && { aceitaLancamento }),
         ...(ativa !== undefined && { ativa }),
+        ...(natureza !== undefined && {natureza})
       },
     });
 

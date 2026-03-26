@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
-
+ 
   // Estatísticas
   const totalContas = await prisma.contaContabil.count({ where: { ativa: true } });
   const totalLancamentos = await prisma.lancamentoContabil.count({ where: { status: "ATIVO" } });

@@ -3,11 +3,10 @@ import { NextResponse } from "next/server";
 
 // Mapa: rota → permissão necessária
 const ROUTE_PERMISSIONS: Record<string, string> = {
-  "/dashboard/contas": "contas.ver",
+  "/dashboard/plano-contas": "contas.ver",
   "/dashboard/lancamentos": "lancamentos.ver",
   "/dashboard/periodos": "periodos.ver",
-  "/dashboard/utilizadores": "utilizadores.ver",
-  "/dashboard/relatorios": "relatorios.ver",
+  "/dashboard/utilizadores": "utilizadores.ver"
 };
 
 export default withAuth(

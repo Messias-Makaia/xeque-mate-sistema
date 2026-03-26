@@ -40,6 +40,18 @@ export async function GET(
             ativo: true,
           },
         },
+        roles:{
+          select:{
+            id:true,
+            role:{
+              select:{
+                id:true,
+                nome:true,
+                ativo:true,
+              }
+            },
+          },
+        },
       },
     });
 
@@ -72,7 +84,7 @@ export async function PUT(
     }
 
     const body = await req.json();
-    const { email, senha, nome, ativo } = body;
+    const { email, senha, nome, ativo, roles} = body;
 
     // Verificar se o usuário existe
     const usuarioExistente = await prisma.user.findUnique({
@@ -117,21 +129,41 @@ export async function PUT(
       dadosAtualizacao.senha = senhaHash;
     }
 
+    if(!roles){
+      return NextResponse.json({message:"Nenhum papel selecionado"}, {status: 400});
+    } 
+
     // Atualizar usuário
-    const usuarioAtualizado = await prisma.user.update({
+    const usuarioAtualizado = await prisma.$transaction( async (tx) => {
+     const user = await tx.user.update({
       where: { id: params.id },
-      data: dadosAtualizacao,
-      select: {
-        id: true,
-        email: true,
-        nome: true,
-        ativo: true,
-        criadoEm: true,
-        criadoPor: true,
-      },
+      data:{
+        email: dadosAtualizacao.email, 
+        nome: dadosAtualizacao.nome,
+        ativo: dadosAtualizacao.ativo!== undefined ? dadosAtualizacao.ativo : usuarioExistente.ativo,
+        atualizadopor: session.user.id,
+        senha: dadosAtualizacao?.senha !== undefined ? dadosAtualizacao.senha:usuarioExistente.senha, 
+      },})
+
+      await tx.userRole.deleteMany({
+        where:{userId: usuarioExistente.id}
+      })
+
+      const novosRoles = roles.map((r:any) =>(
+        {
+          userId: user.id,
+          roleId: r.id,
+        }
+      ));
+
+      await tx.userRole.createMany({
+        data:novosRoles,
+      })
+
+      return user;
     });
 
-    return NextResponse.json(usuarioAtualizado);
+    return NextResponse.json(usuarioAtualizado, {status:200});
   } catch (error) {
     console.error("Erro ao editar usuário:", error);
     return NextResponse.json(

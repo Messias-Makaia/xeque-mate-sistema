@@ -66,7 +66,7 @@ export async function POST(
         status: "ATIVO",
         periodoId: lancamentoOriginal.periodoId,
         observacoes: `Estorno do lançamento ${lancamentoOriginal.id}`,
-        criadoPor: session?.user?.id || "",
+        criadoporId: session?.user?.id || "",
         lancamentoOriginalId: lancamentoOriginal.id,
         itens: {
           create: itensEstorno,

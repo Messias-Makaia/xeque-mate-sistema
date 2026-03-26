@@ -17,7 +17,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const dataFim = searchParams.get("dataFim");
 
-    if (!dataFim) {
+    if (!dataFim?.trim()) {
       return NextResponse.json(
         { message: "Data final é obrigatória" },
         { status: 400 }

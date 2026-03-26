@@ -1,5 +1,6 @@
 generator client {
   provider      = "prisma-client-js"
+  output= "./../node_modules/@prisma/client"
   binaryTargets = ["native"]
 }
 
@@ -13,45 +14,60 @@ datasource db {
 // =====================================================
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  senha     String
-  nome      String
-  ativo     Boolean  @default(true)
-  criadoEm  DateTime @default(now())
+  id       String   @id @default(cuid())
+  email    String   @unique
+  senha    String
+  nome     String
+  ativo    Boolean  @default(true)
+  criadoEm DateTime @default(now())
 
-  criadoPor String?
-  criador   User?  @relation("UsuarioCriador", fields: [criadoPor], references: [id], onDelete: SetNull)
-  usuariosCriados User[] @relation("UsuarioCriador")
+  criadoPor       String?
+  atualizadopor   String?
+  criador         User?   @relation("UsuarioCriador", fields: [criadoPor], references: [id], onDelete: SetNull)
+  atualizador     User?   @relation("UsuarioAtualizador", fields: [atualizadopor], references: [id], onDelete: SetNull)
 
-  roles    UserRole[]
-  Account  Account[]
-  Session  Session[]
+  usuariosCriados User[]  @relation("UsuarioCriador")
+  usuariosAtualizados User[] @relation ("UsuarioAtualizador")
+ 
+  roles   UserRole[]
+  Account Account[]
+  Session Session[]
 
   // Auditoria
   auditLogs AuditLog[] @relation("AuditActor")
 
   // ContaContabil
-  contasCriadas      ContaContabil[] @relation("ContaCriada")
-  contasAtualizadas  ContaContabil[] @relation("ContaAtualizada")
-  contasCanceladas   ContaContabil[] @relation("ContaCancelada")
+  contasCriadas     ContaContabil[] @relation("ContaCriada")
+  contasAtualizadas ContaContabil[] @relation("ContaAtualizada")
+  contasCanceladas  ContaContabil[] @relation("ContaCancelada")
 
   // LancamentoContabil
   lancamentosCriados LancamentoContabil[] @relation("LancamentoCriado")
 
   // PeriodoContabil
-  periodosCriados    PeriodoContabil[] @relation("PeriodoCriado")
-  periodosAtualizados PeriodoContabil[] @relation("PeriodoAtualizado")
+  exericiciosCriados    ExercicioFiscal[] @relation("ExercicioCriado")
+  exerciciosAtualizados ExercicioFiscal[] @relation("ExercicioAtualizado")
 
+  // Roles (corrigido: era "Roles", agora "Role")
+  papeisCriados          Role[]                   @relation("PapelCriado")
+  papeisAtualizados      Role[]                   @relation("PapelAtualizado")
+  DemonstracaoFinanceira DemonstracaoFinanceira[]
+  RegraEncerramento      RegraEncerramento[]
+  fechos  PeriodoContabil[] @relation("Fechos")
   @@map("users")
 }
 
 model Role {
-  id        String   @id @default(cuid())
-  nome      String   @unique
-  descricao String?
-  ativo     Boolean  @default(true)
-  criadoEm  DateTime @default(now())
+  id              String   @id @default(cuid())
+  nome            String   @unique
+  descricao       String?
+  ativo           Boolean  @default(true)
+  criadoEm        DateTime @default(now())
+  criadoporId     String?
+  atualizadoporId String?
+
+  criadopor     User? @relation("PapelCriado", fields: [criadoporId], references: [id], onDelete: Restrict)
+  atualizadopor User? @relation("PapelAtualizado", fields: [atualizadoporId], references: [id], onDelete: SetNull)
 
   users       UserRole[]
   permissions RolePermission[]
@@ -142,12 +158,12 @@ model AuditLog {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
 
-  actorId   String?
-  actor     User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  actorId String?
+  actor   User?   @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
 
-  action    String
-  entity    String
-  entityId  String?
+  action   String
+  entity   String
+  entityId String?
 
   beforeJson Json?
   afterJson  Json?
@@ -163,80 +179,113 @@ model AuditLog {
 // ==================== PLANO DE CONTAS ====================
 
 model ContaContabil {
-  id                String   @id @default(cuid())
-  codigo            String   @unique
-  nome              String
-  descricao         String?
-  tipo              String   // "ATIVO", "PASSIVO", "CAPITAL", "RECEITA", "CUSTO"
-  natureza          String   // "DEVEDORA" ou "CREDORA"
-  naturezaResultado Boolean  @default(false) // true = será zerada no encerramento
-  nivel             Int
-  contaPaiId        String?
-  contaPai          ContaContabil?  @relation("HierarquiaConta", fields: [contaPaiId], references: [id])
-  subContas         ContaContabil[] @relation("HierarquiaConta")
-  aceitaLancamento  Boolean  @default(true)
-  ativa             Boolean  @default(true)
-  criadaEm          DateTime @default(now())
-  atualizadaEm      DateTime @updatedAt
+  id               String          @id @default(cuid())
+  codigo           String          @unique
+  nome             String
+  descricao        String?
+  tipo             String // "ATIVO", "PASSIVO", "CAPITAL", "RECEITA", "CUSTO"
+  natureza         String // "DEVEDORA" ou "CREDORA"
+  nivel            Int
+  contaPai  String?
+  saldoAtual       Decimal         @default(0)
+  contasPais       ContaContabil?  @relation("HierarquiaConta", fields: [contaPai], references: [codigo])
+  subContas        ContaContabil[] @relation("HierarquiaConta")
+  aceitaLancamento Boolean         @default(true)
+  ativa            Boolean         @default(true)
+  criadaEm         DateTime        @default(now())
+  atualizadaEm     DateTime        @updatedAt
 
   criadoporId     String
   atualizadoporId String?
   canceladoporId  String?
 
-  criadopor     User  @relation("ContaCriada",     fields: [criadoporId],     references: [id], onDelete: Restrict)
+  criadopor     User  @relation("ContaCriada", fields: [criadoporId], references: [id], onDelete: Restrict)
   atualizadopor User? @relation("ContaAtualizada", fields: [atualizadoporId], references: [id], onDelete: SetNull)
-  canceladopor  User? @relation("ContaCancelada",  fields: [canceladoporId],  references: [id], onDelete: SetNull)
+  canceladopor  User? @relation("ContaCancelada", fields: [canceladoporId], references: [id], onDelete: SetNull)
 
-  itensLancamento ItemLancamento[]
-
+  itensLancamento  ItemLancamento[]
+  saldosHistoricos SaldoHistorico[] // Adicionado para consistência
+  
   @@index([codigo])
   @@index([tipo])
   @@map("contas_contabeis")
 }
 
 // ==================== PERÍODOS CONTABILÍSTICOS ====================
-
-model PeriodoContabil {
-  id          String   @id @default(cuid())
-  nome        String
-  tipo        String   @default("MES") // "EXERCICIO" ou "MES"
-  dataInicio  DateTime
-  dataFim     DateTime
-  fechado     Boolean  @default(false)
-  bloqueado Boolean @default(false)
-  criadoEm    DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
-
-  // Hierarquia: Exercício -> Meses
-  exercicioId String?
-  exercicio   PeriodoContabil?  @relation("ExercicioMeses", fields: [exercicioId], references: [id])
-  meses       PeriodoContabil[] @relation("ExercicioMeses")
-
+model ExercicioFiscal {
+  id              String          @id @default(cuid())
+  nome            String // "2024"
+  dataInicio      DateTime
+  dataFim         DateTime
+  fechado         Boolean         @default(false)
+  criadoEm        DateTime        @default(now())
   criadoporId     String
   atualizadoporId String?
 
-  criadopor     User  @relation("PeriodoCriado",     fields: [criadoporId],     references: [id], onDelete: Restrict)
-  atualizadopor User? @relation("PeriodoAtualizado", fields: [atualizadoporId], references: [id], onDelete: SetNull)
+  criadopor              User                     @relation("ExercicioCriado", fields: [criadoporId], references: [id], onDelete: Restrict)
+  atualizadopor          User?                    @relation("ExercicioAtualizado", fields: [atualizadoporId], references: [id], onDelete: SetNull)
+  lancamentos            LancamentoContabil[]     @relation("LancamentosExercicio")
+  periodos               PeriodoContabil[]
+  saldosHistoricos       SaldoHistorico[] // Adicionado para consistência
+  DemonstracaoFinanceira DemonstracaoFinanceira[]
 
-  lancamentos LancamentoContabil[]
+  @@map("exercicios_fiscais")
+}
+
+enum StatusPeriodo {
+  ABERTO // O período atual, permite lançamentos
+  FECHADO // Encerrado, bloqueado para edição
+  AGUARDANDO // Futuro, esperando o anterior ser fechado
+  REVISAO // Foi reaberto para ajustes específicos
+  REPROCESSAMENTO // esperando correção 
+}
+
+model PeriodoContabil {
+  id           String          @id @default(cuid())
+  nome         String
+  exercicioId  String
+  exercicio    ExercicioFiscal @relation(fields: [exercicioId], references: [id], onDelete: Cascade)
+  dataInicio   DateTime
+  dataFim      DateTime
+  periodoIndex Int
+  status       StatusPeriodo   @default(AGUARDANDO)
+  bloqueado    Boolean         @default(false)
+  criadoEm     DateTime        @default(now())
+  atualizadoporId String?
+  atualizadopor User?  @relation("Fechos",fields: [atualizadoporId], references: [id], onDelete: SetNull)
+  lancamentos   LancamentoContabil[]
+  demonstracoes DemonstracaoFinanceira[] // Adicionado para consistência
 
   @@map("periodos_contabeis")
 }
 
 // ==================== LANÇAMENTOS CONTÁBEIS ====================
+enum TipoLancamento {
+  NORMAL
+  ESTORNO
+  ENCERRAMENTO
+  AJUSTE
+  APURAMENTO
+  DISTRIBUICAO
+}
 
 model LancamentoContabil {
-  id           String   @id @default(cuid())
-  data         DateTime
-  descricao    String
-  documento    String?
-  tipo         String   @default("NORMAL") // "NORMAL", "ESTORNO", "ENCERRAMENTO"
-  totalDebito  Decimal  @db.Decimal(15, 2)
-  totalCredito Decimal  @db.Decimal(15, 2)
-  status       String   @default("ATIVO") // "ATIVO", "CANCELADO", "ESTORNADO"
-  observacoes  String?
-  criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  id                String           @id @default(cuid())
+  data              DateTime
+  descricao         String
+  documento         String?
+  tipo              String           @default("NORMAL") // "NORMAL", "ESTORNO", "ENCERRAMENTO"
+  totalDebito       Decimal          @db.Decimal(15, 2)
+  totalCredito      Decimal          @db.Decimal(15, 2)
+  status            String           @default("ATIVO") // "ATIVO", "CANCELADO", "ESTORNADO"
+  observacoes       String?
+  moeda             String           @default("AOA")
+  tipoLancamento    TipoLancamento   @default(NORMAL)
+  exercicioId       String? // Referência ao exercício para encerramentos
+  exercicio         ExercicioFiscal? @relation("LancamentosExercicio", fields: [exercicioId], references: [id]) // Corrigido: agora aponta para ExercicioFiscal
+  isSystemGenerated Boolean          @default(false)
+  criadoEm          DateTime         @default(now())
+  atualizadoEm      DateTime         @updatedAt
 
   criadoporId String
   periodoId   String
@@ -250,21 +299,76 @@ model LancamentoContabil {
 
   itens ItemLancamento[]
 
+  @@index([data, periodoId])
+  @@index([criadoporId])
   @@map("lancamentos_contabeis")
 }
 
 model ItemLancamento {
-  id              String  @id @default(cuid())
+  id              String   @id @default(cuid())
   lancamentoId    String
   contaContabilId String
   codigoConta     String
   nomeConta       String
-  debito          Decimal @db.Decimal(15, 2)
-  credito         Decimal @db.Decimal(15, 2)
+  debito          Decimal  @db.Decimal(15, 2)
+  credito         Decimal  @db.Decimal(15, 2)
   criadoEm        DateTime @default(now())
 
   lancamento    LancamentoContabil @relation(fields: [lancamentoId], references: [id], onDelete: Cascade)
   contaContabil ContaContabil      @relation(fields: [contaContabilId], references: [id])
 
+  @@unique([lancamentoId, contaContabilId]) // Evita itens duplicados no mesmo lançamento
+  @@index([contaContabilId, lancamentoId])
   @@map("itens_lancamento")
+}
+
+//================== Histórico e SnapShots de DFs ===========================
+
+model SaldoHistorico {
+  id           String   @id @default(cuid())
+  contaId      String
+  periodoId    String
+  saldoDebito  Decimal  @default(0) @db.Decimal(15, 2)
+  saldoCredito Decimal  @default(0) @db.Decimal(15, 2)
+  saldoLiquido Decimal  @default(0) @db.Decimal(15, 2) // Calculado: debito - credito (dependendo da natureza)
+  criadoEm     DateTime @default(now())
+
+  conta   ContaContabil   @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  periodo ExercicioFiscal @relation(fields: [periodoId], references: [id], onDelete: Cascade)
+
+  @@unique([contaId, periodoId])
+  @@map("saldos_historicos")
+}
+
+model DemonstracaoFinanceira {
+  id          String   @id @default(cuid())
+  tipo        String // "BALANCO", "DRE", "BALANCETE"
+  periodoId   String
+  dados       Json // Armazenar estrutura JSON das demonstrações (ex.: { "ativo": 1000000, "passivo": 800000 })
+  criadoEm    DateTime @default(now())
+  criadoporId String
+
+  periodo           ExercicioFiscal  @relation(fields: [periodoId], references: [id]) // Corrigido: agora aponta para ExercicioFiscal para demonstrações anuais
+  criadopor         User             @relation(fields: [criadoporId], references: [id])
+  PeriodoContabil   PeriodoContabil? @relation(fields: [periodoContabilId], references: [id])
+  periodoContabilId String?
+
+  @@map("demonstracoes_financeiras")
+}
+
+//========================= Modelo para Regras de Encerramento =======================
+
+model RegraEncerramento {
+  id           String   @id @default(cuid())
+  descricao    String
+  contaOrigem  String // Código da conta a zerar (ex.: "7. Receitas")
+  contaDestino String // Código da conta destino (ex.: "5. Resultados Transitados")
+  tipo         String // "ZERAR_RECEITAS", "ZERAR_DESPESAS", etc.
+  ativo        Boolean  @default(true)
+  criadoporId  String // Adicionado para auditoria
+  criadoEm     DateTime @default(now())
+
+  criadopor User @relation(fields: [criadoporId], references: [id]) // Adicionado
+
+  @@map("regras_encerramento")
 }
